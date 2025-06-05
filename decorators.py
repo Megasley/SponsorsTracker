@@ -9,7 +9,7 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_admin_user():
             flash('Access denied. Admin privileges required.', 'error')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('main.dashboard'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -20,7 +20,7 @@ def can_edit_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.can_edit():
             flash('Access denied. You do not have permission to modify data.', 'error')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('main.dashboard'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -31,6 +31,6 @@ def viewer_or_admin_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.can_view():
             flash('Access denied.', 'error')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('main.dashboard'))
         return f(*args, **kwargs)
     return decorated_function
