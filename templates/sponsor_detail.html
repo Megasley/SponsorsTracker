@@ -1,0 +1,290 @@
+{% extends "base_auth.html" %}
+
+{% block title %}{{ sponsor.name }} - Sponsors Tracking Tool{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Left Sidebar -->
+    <div class="col-lg-3">
+        <div class="sidebar-detail">
+            <div class="d-flex align-items-center mb-3">
+                {% if sponsor.logo_filename %}
+                    <img src="{{ url_for('main.uploaded_file', filename=sponsor.logo_filename) }}" 
+                         alt="{{ sponsor.name }}" class="sponsor-logo-medium me-3">
+                {% else %}
+                    <div class="sponsor-logo-placeholder-medium me-3">
+                        <i class="fas fa-building fa-2x"></i>
+                    </div>
+                {% endif %}
+                <div>
+                    <h5 class="fw-bold mb-1">{{ sponsor.name }}</h5>
+                    <span class="badge bg-{{ 'warning' if sponsor.tier == 'Gold' else 'light text-dark' if sponsor.tier == 'Platinum' else 'secondary' }}">
+                        {{ sponsor.tier }}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="nav nav-pills flex-column" role="tablist">
+                <button class="nav-link active text-start" data-bs-toggle="pill" data-bs-target="#overview" type="button">
+                    Overview
+                </button>
+                <button class="nav-link text-start" data-bs-toggle="pill" data-bs-target="#basic-info" type="button">
+                    Basic Info
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="col-lg-9">
+        <div class="tab-content">
+            <!-- Overview Tab -->
+            <div class="tab-pane fade show active" id="overview">
+                <div class="row">
+                    <!-- Basic Info Card -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                                <h6 class="fw-bold mb-0">Basic Info</h6>
+                                {% if current_user.can_edit() %}
+                                <a href="{{ url_for('main.edit_sponsor', id=sponsor.id) }}" class="btn btn-sm btn-teal">
+                                    Edit
+                                </a>
+                                {% endif %}
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    {% if sponsor.contact_person %}
+                                    <div class="col-12">
+                                        <small class="text-muted d-block">Contact Person</small>
+                                        <span>{{ sponsor.contact_person }}</span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if sponsor.email %}
+                                    <div class="col-12">
+                                        <small class="text-muted d-block">Email</small>
+                                        <a href="mailto:{{ sponsor.email }}" class="text-decoration-none">
+                                            {{ sponsor.email }}
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if sponsor.phone %}
+                                    <div class="col-12">
+                                        <small class="text-muted d-block">Phone</small>
+                                        <a href="tel:{{ sponsor.phone }}" class="text-decoration-none">
+                                            {{ sponsor.phone }}
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if sponsor.website %}
+                                    <div class="col-12">
+                                        <small class="text-muted d-block">Website</small>
+                                        <a href="{{ sponsor.website }}" target="_blank" class="text-decoration-none">
+                                            <i class="fas fa-external-link-alt me-1"></i>{{ sponsor.website }}
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="col-12">
+                                        <small class="text-muted d-block">Status</small>
+                                        <span class="badge bg-{{ 'success' if sponsor.status == 'Confirmed' else 'danger' if sponsor.status == 'Declined' else 'warning' if sponsor.status == 'Pending' else 'info' }}">
+                                            {{ sponsor.status }}
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="col-12">
+                                        <small class="text-muted d-block">Amount</small>
+                                        <span class="fw-bold text-teal fs-5">
+                                            ${{ "{:,.0f}".format(sponsor.amount) if sponsor.amount else "0" }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sponsorship History Card -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-white border-bottom">
+                                <h6 class="fw-bold mb-0">Sponsorship History</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-6">
+                                        <small class="text-muted d-block">Amount</small>
+                                        <span class="fw-medium">${{ "{:,.0f}".format(sponsor.amount) if sponsor.amount else "0" }}</span>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted d-block">Date</small>
+                                        <span class="fw-medium">{{ sponsor.created_at.strftime('%m/%d/%Y') }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Linked Events and Files Row -->
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-white border-bottom">
+                                <h6 class="fw-bold mb-0">Linked Events</h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted">No events linked yet</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-white border-bottom">
+                                <h6 class="fw-bold mb-0">Files Uploaded</h6>
+                            </div>
+                            <div class="card-body">
+                                {% if files %}
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        {% for file in files %}
+                                        <div class="file-icon bg-light p-2 rounded">
+                                            <i class="fas fa-file fa-2x text-muted"></i>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">No files uploaded yet</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Basic Info Tab -->
+            <div class="tab-pane fade" id="basic-info">
+                <div class="card">
+                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                        <h6 class="fw-bold mb-0">Basic Info</h6>
+                        {% if current_user.can_edit() %}
+                        <a href="{{ url_for('main.edit_sponsor', id=sponsor.id) }}" class="btn btn-sm btn-teal">
+                            Edit
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        {% if sponsor.notes %}
+                        <div class="mb-4">
+                            <h6 class="fw-bold mb-2">Notes</h6>
+                            <p class="text-muted">{{ sponsor.notes }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Activity Form -->
+                        <form method="POST" action="{{ url_for('main.add_activity', id=sponsor.id) }}">
+                            {{ activity_form.hidden_tag() }}
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    {{ activity_form.activity_type.label(class="form-label fw-semibold") }}
+                                    {{ activity_form.activity_type(class="form-select") }}
+                                </div>
+                                <div class="col-md-8 mb-3">
+                                    {{ activity_form.description.label(class="form-label fw-semibold") }}
+                                    {{ activity_form.description(class="form-control", rows="2") }}
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>Add Activity
+                            </button>
+                        </form>
+
+                        <!-- Activity Timeline -->
+                        {% if activities %}
+                        <div class="mt-4">
+                            <h6 class="fw-bold mb-3">Activity Timeline</h6>
+                            <div class="timeline">
+                                {% for activity in activities %}
+                                <div class="timeline-item">
+                                    <div class="timeline-marker">
+                                        <i class="fas fa-{{ 'phone' if activity.activity_type == 'call' else 'envelope' if activity.activity_type == 'email' else 'calendar' if activity.activity_type == 'meeting' else 'clock' if activity.activity_type == 'follow_up' else 'sticky-note' }}"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <h6 class="mb-1">
+                                                    <span class="badge bg-primary me-2">{{ activity.activity_type.title() }}</span>
+                                                    {{ activity.created_at.strftime('%B %d, %Y at %I:%M %p') }}
+                                                </h6>
+                                                <p class="mb-1">{{ activity.description }}</p>
+                                                <small class="text-muted">by {{ activity.user.username }}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- File Upload -->
+                        <div class="mt-4">
+                            <h6 class="fw-bold mb-3">Upload Files</h6>
+                            <form method="POST" action="{{ url_for('main.upload_file', id=sponsor.id) }}" enctype="multipart/form-data">
+                                {{ file_form.hidden_tag() }}
+                                <div class="row">
+                                    <div class="col-md-8 mb-3">
+                                        {{ file_form.file(class="form-control") }}
+                                        <div class="form-text">Supported formats: PDF, DOC, DOCX, TXT, JPG, PNG, GIF</div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="fas fa-upload me-2"></i>Upload
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="deleteSponsorName"></strong>?</p>
+                <p class="text-muted">This action cannot be undone and will delete all associated activities and files.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmDelete(sponsorId, sponsorName) {
+    document.getElementById('deleteSponsorName').textContent = sponsorName;
+    document.getElementById('deleteForm').action = `/sponsors/${sponsorId}/delete`;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+</script>
+{% endblock %}

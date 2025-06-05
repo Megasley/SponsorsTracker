@@ -1,0 +1,156 @@
+✅ Prompt: Sponsors Tracking Tool (Flask + HTML + CSS)
+🔧 Tech Stack Overview
+Backend: Python with Flask (lightweight and easy to deploy on Render)
+
+Frontend: HTML5 templates (Jinja2), CSS3, minimal JavaScript
+
+Database: SQLite (local) or PostgreSQL (for production on Render)
+
+Auth: Flask-Login for authentication
+
+File uploads: Flask-Uploads or standard werkzeug handling
+
+🖥️ UI Pages and Functional Layout
+1. 🔒 Authentication (Login/Register)
+Use Flask-Login for user auth.
+
+Pages:
+
+login.html
+
+register.html
+
+logout
+
+Optional: Forgot password (email-based)
+
+2. 📊 Dashboard Page (/dashboard)
+Header: “Sponsors Tracking Tool”
+
+Sections:
+
+Stat Cards:
+
+💰 Total Raised
+
+🤝 Total Sponsors
+
+📅 Upcoming Follow-ups
+
+Recent Sponsors Table:
+
+Columns: Name, Category, Amount, Status
+
+Button: “View All Sponsors”
+
+3. 📋 Sponsors List Page (/sponsors)
+Top bar:
+
+Search field
+
+"Add Sponsor" button (top-right)
+
+Table columns:
+
+Logo
+
+Name
+
+Tier (Gold/Silver/Platinum)
+
+Status (Confirmed, Contacted, Declined)
+
+Amount Sponsored
+
+Contact Person
+
+"View Details" link
+
+4. 📄 Sponsor Detail Page (/sponsors/<id>)
+Sidebar:
+
+Sponsor logo
+
+Tier & Status Badge
+
+Main Content:
+
+Basic Info (editable): name, phone, email, website
+
+Sponsorship History
+
+Events linked
+
+File uploads (drag & drop or manual)
+
+Activity Timeline (notes, follow-ups)
+
+5. ⚙️ Settings Page (/settings)
+Only for Admins
+
+Manage users
+
+Export data (CSV or PDF)
+
+Configure default tiers
+
+🧱 Flask Project Structure
+arduino
+Copy
+sponsors_tool/
+├── app/
+│   ├── templates/
+│   │   ├── base.html
+│   │   ├── login.html
+│   │   ├── dashboard.html
+│   │   ├── sponsors.html
+│   │   ├── sponsor_detail.html
+│   ├── static/
+│   │   ├── css/
+│   │   └── js/
+│   ├── __init__.py
+│   ├── routes.py
+│   ├── models.py
+│   └── forms.py
+├── config.py
+├── requirements.txt
+└── run.py
+📦 Flask Libraries to Use
+bash
+Copy
+pip install flask flask-login flask-wtf flask-sqlalchemy flask-migrate
+📐 Example Model
+python
+Copy
+class Sponsor(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100))
+    contact_person = db.Column(db.String(100))
+    email = db.Column(db.String(120))
+    phone = db.Column(db.String(20))
+    tier = db.Column(db.String(20))  # e.g., Gold, Silver
+    status = db.Column(db.String(20))  # Confirmed, Contacted, etc.
+    amount = db.Column(db.Float)
+    logo_filename = db.Column(db.String(120))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+🎨 Design Guidelines
+Fonts: Inter or Poppins
+
+Color Scheme:
+
+Navy: #002b5b
+
+Teal: #00b894
+
+Gray BG: #f8f9fa
+
+Accent Blue: #4a69bd
+
+Status Badges:
+
+Green: Confirmed
+
+Red: Declined
+
+Orange: Pending
+

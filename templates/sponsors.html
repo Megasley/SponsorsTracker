@@ -1,0 +1,178 @@
+{% extends "base_auth.html" %}
+
+{% block title %}Sponsors - Sponsors Tracking Tool{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1 fw-bold text-dark">Sponsors</h1>
+        <p class="text-muted mb-0 small">Manage and track your sponsor relationships</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <div class="search-container">
+            <form method="GET" class="d-flex">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white border-end-0">
+                        <i class="fas fa-search text-muted"></i>
+                    </span>
+                    <input type="text" name="search" class="form-control border-start-0" 
+                           placeholder="Search sponsors..." value="{{ search }}" style="box-shadow: none; min-width: 200px;">
+                </div>
+            </form>
+        </div>
+        {% if current_user.can_edit() %}
+        <a href="{{ url_for('main.add_sponsor') }}" class="btn btn-sm shadow-sm" style="background-color: var(--orange); border: none; color: white;">
+            <i class="fas fa-plus me-1"></i>Add Sponsor
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Sponsors Table -->
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        {% if sponsors %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead style="background-color: #f8f9fa;">
+                    <tr>
+                        <th class="border-0 py-3 ps-4 text-muted" style="font-size: 0.875rem; font-weight: 600;">Logo</th>
+                        <th class="border-0 py-3 text-muted" style="font-size: 0.875rem; font-weight: 600;">Sponsor</th>
+                        <th class="border-0 py-3 text-muted" style="font-size: 0.875rem; font-weight: 600;">Tier</th>
+                        <th class="border-0 py-3 text-muted" style="font-size: 0.875rem; font-weight: 600;">Status</th>
+                        <th class="border-0 py-3 text-muted" style="font-size: 0.875rem; font-weight: 600;">Amount</th>
+                        <th class="border-0 py-3 text-muted" style="font-size: 0.875rem; font-weight: 600;">Contact</th>
+                        <th class="border-0 py-3 pe-4 text-muted" style="font-size: 0.875rem; font-weight: 600;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sponsor in sponsors %}
+                    <tr class="sponsor-row-hover">
+                        <td class="border-0 py-3 ps-4">
+                            {% if sponsor.logo_filename %}
+                                <img src="{{ url_for('main.uploaded_file', filename=sponsor.logo_filename) }}" 
+                                     alt="{{ sponsor.name }}" class="sponsor-logo-small rounded-2">
+                            {% else %}
+                                <div class="sponsor-logo-placeholder rounded-2" style="background-color: var(--orange); color: white;">
+                                    <i class="fas fa-building"></i>
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td class="border-0 py-3">
+                            <div class="fw-semibold mb-1" style="font-size: 0.9rem;">{{ sponsor.name }}</div>
+                            {% if sponsor.website %}
+                                <small class="text-muted" style="font-size: 0.75rem;">
+                                    <a href="{{ sponsor.website }}" target="_blank" class="text-decoration-none" style="color: var(--orange);">
+                                        <i class="fas fa-external-link-alt me-1"></i>Website
+                                    </a>
+                                </small>
+                            {% endif %}
+                        </td>
+                        <td class="border-0 py-3">
+                            <span class="badge rounded-pill" style="font-size: 0.75rem; background-color: {% if sponsor.tier == 'Gold' %}var(--orange){% elif sponsor.tier == 'Platinum' %}var(--nero){% else %}var(--green){% endif %}; color: white;">
+                                {{ sponsor.tier }}
+                            </span>
+                        </td>
+                        <td class="border-0 py-3">
+                            <span class="badge rounded-pill" style="font-size: 0.75rem; background-color: 
+                                {% if sponsor.status == 'Confirmed' %}var(--green){% endif %}
+                                {% if sponsor.status == 'Pending' %}var(--orange){% endif %}
+                                {% if sponsor.status == 'Declined' %}var(--red){% endif %}
+                                {% if sponsor.status == 'Contacted' %}var(--nero){% endif %}; color: white;">
+                                {{ sponsor.status }}
+                            </span>
+                        </td>
+                        <td class="border-0 py-3">
+                            <span class="fw-semibold" style="font-size: 0.9rem;">${{ "{:,.0f}".format(sponsor.amount) if sponsor.amount else "0" }}</span>
+                        </td>
+                        <td class="border-0 py-3">
+                            <div style="font-size: 0.85rem;">
+                                {% if sponsor.contact_person %}
+                                    <div class="fw-medium mb-1">{{ sponsor.contact_person }}</div>
+                                {% endif %}
+                                {% if sponsor.email %}
+                                    <small class="text-muted">{{ sponsor.email }}</small>
+                                {% else %}
+                                    <small class="text-muted">No contact info</small>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="border-0 py-3 pe-4">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a href="{{ url_for('main.sponsor_detail', id=sponsor.id) }}" 
+                                   class="btn btn-outline-secondary" title="View Details" style="font-size: 0.75rem;">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                {% if current_user.can_edit() %}
+                                <a href="{{ url_for('main.edit_sponsor', id=sponsor.id) }}" 
+                                   class="btn btn-outline-secondary" title="Edit" style="font-size: 0.75rem;">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-danger" 
+                                        onclick="confirmDelete({{ sponsor.id }}, '{{ sponsor.name }}')" title="Delete" style="font-size: 0.75rem;">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="fas fa-search fa-3x opacity-50" style="color: var(--orange);"></i>
+            </div>
+            <h5 class="text-muted mb-2">No sponsors found</h5>
+            <p class="text-muted mb-3" style="font-size: 0.9rem;">
+                {% if search or tier_filter or status_filter %}
+                    Try adjusting your filters or search terms
+                {% else %}
+                    Start by adding your first sponsor
+                {% endif %}
+            </p>
+            {% if not (search or tier_filter or status_filter) %}
+            <a href="{{ url_for('main.add_sponsor') }}" class="btn shadow-sm" style="background-color: var(--orange); border: none; color: white;">
+                <i class="fas fa-plus me-2"></i>Add First Sponsor
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="deleteSponsorName"></strong>?</p>
+                <p class="text-muted">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmDelete(sponsorId, sponsorName) {
+    document.getElementById('deleteSponsorName').textContent = sponsorName;
+    document.getElementById('deleteForm').action = `/sponsors/${sponsorId}/delete`;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+</script>
+{% endblock %}
