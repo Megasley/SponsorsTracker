@@ -3,6 +3,7 @@ from extensions import db
 from auth import login_manager
 from routes import main_bp
 from config import Config
+from email_utils import mail
 import os
 
 def create_app():
@@ -12,6 +13,7 @@ def create_app():
     # Initialize extensions
     db.init_app(app)
     login_manager.init_app(app)
+    mail.init_app(app)
     
     # Register blueprints
     app.register_blueprint(main_bp)

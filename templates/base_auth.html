@@ -37,8 +37,8 @@
             </div>
             
             <div class="sidebar-menu">
-                <a href="{{ url_for('main.dashboard') }}" 
-                   class="sidebar-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}">
+                <a href="{{ url_for('main.index') }}" 
+                   class="sidebar-link {% if request.endpoint == 'main.index' %}active{% endif %}">
                     <i class="fas fa-chart-line me-2"></i>Dashboard
                 </a>
                 <a href="{{ url_for('main.sponsors') }}" 

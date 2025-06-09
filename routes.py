@@ -1,28 +1,32 @@
 import os
 import uuid
 from datetime import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, current_app, Response
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
 from sqlalchemy import or_, func
 from extensions import db
 from models import User, Sponsor, Activity, SponsorFile
-from forms import LoginForm, RegisterForm, SponsorForm, ActivityForm, FileUploadForm
+from forms import LoginForm, RegisterForm, SponsorForm, ActivityForm, FileUploadForm, ChangePasswordForm, AddUserForm
 from utils import allowed_file, get_dashboard_stats
 from decorators import admin_required, can_edit_required, viewer_or_admin_required
+from email_utils import send_follow_up_email, send_bulk_email
+from io import StringIO
+import csv
 
 main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
+@login_required
 def index():
-    if current_user.is_authenticated:
-        return redirect(url_for('main.dashboard'))
-    return redirect(url_for('main.login'))
+    stats = get_dashboard_stats()
+    recent_sponsors = Sponsor.query.order_by(Sponsor.created_at.desc()).limit(5).all()
+    return render_template('dashboard.html', stats=stats, recent_sponsors=recent_sponsors)
 
 @main_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('main.dashboard'))
+        return redirect(url_for('main.index'))
     
     form = LoginForm()
     if form.validate_on_submit():
@@ -31,44 +35,10 @@ def login():
             login_user(user, remember=form.remember_me.data)
             next_page = request.args.get('next')
             flash('Login successful!', 'success')
-            return redirect(next_page) if next_page else redirect(url_for('main.dashboard'))
+            return redirect(next_page) if next_page else redirect(url_for('main.index'))
         flash('Invalid username or password', 'danger')
     
     return render_template('login.html', form=form)
-
-@main_bp.route('/register', methods=['GET', 'POST'])
-def register():
-    if current_user.is_authenticated:
-        return redirect(url_for('main.dashboard'))
-    
-    form = RegisterForm()
-    if form.validate_on_submit():
-        # Check if username or email already exists
-        existing_user = User.query.filter(
-            or_(User.username == form.username.data, User.email == form.email.data)
-        ).first()
-        
-        if existing_user:
-            flash('Username or email already exists', 'danger')
-        else:
-            # Check if this is the first user (make them admin)
-            user_count = User.query.count()
-            
-            user = User(
-                username=form.username.data,
-                email=form.email.data,
-                role='admin' if user_count == 0 else 'viewer',
-                is_admin=user_count == 0
-            )
-            user.set_password(form.password.data)
-            db.session.add(user)
-            db.session.commit()
-            
-            role_message = "as an administrator" if user_count == 0 else "as a viewer"
-            flash(f'Registration successful! You have been registered {role_message}. Please log in.', 'success')
-            return redirect(url_for('main.login'))
-    
-    return render_template('register.html', form=form)
 
 @main_bp.route('/logout')
 @login_required
@@ -76,13 +46,6 @@ def logout():
     logout_user()
     flash('You have been logged out.', 'info')
     return redirect(url_for('main.login'))
-
-@main_bp.route('/dashboard')
-@login_required
-def dashboard():
-    stats = get_dashboard_stats()
-    recent_sponsors = Sponsor.query.order_by(Sponsor.created_at.desc()).limit(5).all()
-    return render_template('dashboard.html', stats=stats, recent_sponsors=recent_sponsors)
 
 @main_bp.route('/sponsors')
 @login_required
@@ -300,116 +263,168 @@ def uploaded_file(filename):
 @admin_required
 def settings():
     users = User.query.all()
-    return render_template('settings.html', users=users)
+    change_password_form = ChangePasswordForm()
+    add_user_form = AddUserForm()
+    return render_template('settings.html', 
+                         users=users,
+                         change_password_form=change_password_form,
+                         add_user_form=add_user_form)
 
-@main_bp.route('/admin/users/<int:user_id>/role', methods=['POST'])
-@admin_required
+@main_bp.route('/users/<int:user_id>/change-role', methods=['POST'])
+@login_required
 def change_user_role(user_id):
+    if not current_user.role == 'admin':
+        flash('You do not have permission to change user roles.', 'error')
+        return redirect(url_for('main.settings'))
+    
     user = User.query.get_or_404(user_id)
     new_role = request.form.get('role')
     
     if new_role in ['admin', 'viewer']:
         user.role = new_role
-        user.is_admin = (new_role == 'admin')
         db.session.commit()
-        flash(f'User {user.username} role updated to {new_role}', 'success')
+        flash(f'User role updated to {new_role}.', 'success')
     else:
-        flash('Invalid role specified', 'error')
+        flash('Invalid role selected.', 'error')
     
     return redirect(url_for('main.settings'))
 
 @main_bp.route('/export/sponsors')
 @login_required
 def export_sponsors():
-    """Export sponsors data as CSV file"""
-    import csv
-    import io
-    import json
-    from flask import make_response, request
-    from datetime import datetime
+    if not current_user.can_edit():
+        flash('You do not have permission to export data.', 'error')
+        return redirect(url_for('main.sponsors'))
     
-    # Get export format (default to CSV)
-    export_format = request.args.get('format', 'csv').lower()
+    sponsors = Sponsor.query.all()
     
-    # Get filter parameters
-    status_filter = request.args.get('status')
-    tier_filter = request.args.get('tier')
+    # Create CSV data
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Name', 'Contact Person', 'Email', 'Phone', 'Website', 'Tier', 'Status', 'Amount', 'Notes'])
     
-    # Build query with filters
+    for sponsor in sponsors:
+        writer.writerow([
+            sponsor.name,
+            sponsor.contact_person,
+            sponsor.email,
+            sponsor.phone,
+            sponsor.website,
+            sponsor.tier,
+            sponsor.status,
+            sponsor.amount,
+            sponsor.notes
+        ])
+    
+    output.seek(0)
+    return Response(
+        output,
+        mimetype='text/csv',
+        headers={
+            'Content-Disposition': 'attachment; filename=sponsors.csv'
+        }
+    )
+
+@main_bp.route('/sponsors/<int:id>/send-email', methods=['POST'])
+@can_edit_required
+def send_sponsor_email(id):
+    subject = request.form.get('subject')
+    message = request.form.get('message')
+    
+    if not subject or not message:
+        flash('Subject and message are required', 'error')
+        return redirect(url_for('main.sponsor_detail', id=id))
+    
+    if send_follow_up_email(id, subject, message):
+        flash('Email sent successfully', 'success')
+    else:
+        flash('Failed to send email. Please check if the sponsor has a valid email address.', 'error')
+    
+    return redirect(url_for('main.sponsor_detail', id=id))
+
+@main_bp.route('/sponsors/send-bulk-email', methods=['POST'])
+@can_edit_required
+def send_bulk_sponsor_email():
+    subject = request.form.get('subject')
+    message = request.form.get('message')
+    tier_filter = request.form.get('tier')
+    status_filter = request.form.get('status')
+    
+    if not subject or not message:
+        flash('Subject and message are required', 'error')
+        return redirect(url_for('main.sponsors'))
+    
+    # Build query based on filters
     query = Sponsor.query
-    if status_filter:
-        query = query.filter(Sponsor.status == status_filter)
     if tier_filter:
-        query = query.filter(Sponsor.tier == tier_filter)
+        query = query.filter_by(tier=tier_filter)
+    if status_filter:
+        query = query.filter_by(status=status_filter)
     
     sponsors = query.all()
+    success_count = send_bulk_email(sponsors, subject, message)
     
-    if export_format == 'json':
-        # JSON Export
-        sponsors_data = []
-        for sponsor in sponsors:
-            sponsor_dict = {
-                'id': sponsor.id,
-                'name': sponsor.name,
-                'contact_person': sponsor.contact_person,
-                'email': sponsor.email,
-                'phone': sponsor.phone,
-                'website': sponsor.website,
-                'tier': sponsor.tier,
-                'status': sponsor.status,
-                'amount': float(sponsor.amount) if sponsor.amount else 0,
-                'notes': sponsor.notes,
-                'logo_filename': sponsor.logo_filename,
-                'created_at': sponsor.created_at.isoformat() if sponsor.created_at else None,
-                'updated_at': sponsor.updated_at.isoformat() if sponsor.updated_at else None
-            }
-            sponsors_data.append(sponsor_dict)
-        
-        response = make_response(json.dumps(sponsors_data, indent=2))
-        response.headers['Content-Type'] = 'application/json'
-        response.headers['Content-Disposition'] = f'attachment; filename=sponsors_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
-        
+    flash(f'Successfully sent emails to {success_count} sponsors', 'success')
+    return redirect(url_for('main.sponsors'))
+
+@main_bp.route('/settings/change-password', methods=['POST'])
+@login_required
+def change_password():
+    form = ChangePasswordForm()
+    if form.validate_on_submit():
+        if current_user.check_password(form.current_password.data):
+            current_user.set_password(form.new_password.data)
+            db.session.commit()
+            flash('Your password has been updated.', 'success')
+        else:
+            flash('Current password is incorrect.', 'error')
     else:
-        # CSV Export
-        output = io.StringIO()
-        writer = csv.writer(output)
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f'{getattr(form, field).label.text}: {error}', 'error')
+    return redirect(url_for('main.settings'))
+
+@main_bp.route('/settings/add-user', methods=['POST'])
+@admin_required
+def add_user():
+    form = AddUserForm()
+    if form.validate_on_submit():
+        # Check if username or email already exists
+        existing_user = User.query.filter(
+            or_(User.username == form.username.data, User.email == form.email.data)
+        ).first()
         
-        # Write header row
-        writer.writerow([
-            'Company Name',
-            'Contact Person', 
-            'Email',
-            'Phone',
-            'Website',
-            'Tier',
-            'Status',
-            'Amount',
-            'Notes',
-            'Created Date',
-            'Last Updated'
-        ])
-        
-        # Write sponsor data
-        for sponsor in sponsors:
-            writer.writerow([
-                sponsor.name,
-                sponsor.contact_person or '',
-                sponsor.email or '',
-                sponsor.phone or '',
-                sponsor.website or '',
-                sponsor.tier,
-                sponsor.status,
-                sponsor.amount or 0,
-                sponsor.notes or '',
-                sponsor.created_at.strftime('%Y-%m-%d %H:%M:%S') if sponsor.created_at else '',
-                sponsor.updated_at.strftime('%Y-%m-%d %H:%M:%S') if sponsor.updated_at else ''
-            ])
-        
-        response = make_response(output.getvalue())
-        response.headers['Content-Type'] = 'text/csv'
-        response.headers['Content-Disposition'] = f'attachment; filename=sponsors_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        if existing_user:
+            flash('Username or email already exists', 'error')
+        else:
+            user = User(
+                username=form.username.data,
+                email=form.email.data,
+                role=form.role.data
+            )
+            user.set_password(form.password.data)
+            db.session.add(user)
+            db.session.commit()
+            flash(f'User {user.username} has been added successfully.', 'success')
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f'{getattr(form, field).label.text}: {error}', 'error')
+    return redirect(url_for('main.settings'))
+
+@main_bp.route('/settings/remove-user/<int:user_id>', methods=['POST'])
+@admin_required
+def remove_user(user_id):
+    if user_id == current_user.id:
+        flash('You cannot remove your own account.', 'error')
+        return redirect(url_for('main.settings'))
     
-    return response
+    user = User.query.get_or_404(user_id)
+    username = user.username
+    db.session.delete(user)
+    db.session.commit()
+    flash(f'User {username} has been removed.', 'success')
+    return redirect(url_for('main.settings'))
 
 # Error handlers
 @main_bp.errorhandler(404)
